@@ -33,6 +33,7 @@
 #include <ins/ins_data_type.h>
 /* Private constants ---------------------------------------------------------*/
 #define FC_SUBSCRIPTION_TASK_STACK_SIZE   (2048)
+#define TH     0.01f
 #define PRINT 0
 #define FILE_PRINT 0
 #define JSON 0
@@ -231,7 +232,10 @@ static void *UserFcSubscription_Task(void *arg)
             USER_LOG_ERROR("get value of topic acceleration error.");
         }
     #if !BODY
-        uav.acceleration=acceleration;
+        if(fabs(acceleration.x)>TH)  uav.acceleration.x=acceleration.x;
+        if(fabs(acceleration.y)>TH)  uav.acceleration.y=acceleration.y;
+        if(fabs(acceleration.z)>TH)  uav.acceleration.z=acceleration.z;
+        // uav.acceleration=acceleration;
     #endif
 #if JSON
         cJSON_DeleteItemFromObject(liner_acceleration, "x");

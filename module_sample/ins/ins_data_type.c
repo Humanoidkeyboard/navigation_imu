@@ -34,16 +34,10 @@ T_DjiReturnCode PositionCalculate(INS* uav, T_DjiDataTimestamp* time){
     return DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS;
 }
 
-int Location(INS* uav,T_DjiVector3f* acc_world,T_DjiDataTimestamp* time)
+int Location(INS* uav,T_DjiVector3f* acc_world,dji_f32_t dt)
 {
-    dji_f32_t dt = 0;
 
-    if(time->millisecond < uav->timestamp.millisecond)
-        dt = 0.1;
-    else
-        dt = ((dji_f32_t)(time->millisecond - uav->timestamp.millisecond))/1000;
-    printf("dt:%f\n",dt);
-
+    USER_LOG_INFO("position:");
     uav->position.z += uav->velocity.z*dt+0.5*acc_world->z*dt*dt;//dS=vt+1/2a*t^2
     printf("z:%0.2f\n",uav->position.z);
     uav->position.x += uav->velocity.x*dt+0.5*acc_world->x*dt*dt;
@@ -88,11 +82,11 @@ int RotationMatrixMultiplyVector(INS* uav,T_DjiDataTimestamp* time)
 
     result.x = R.M0.N0 * uav->acceleration.x + R.M0.N1 * uav->acceleration.y + R.M0.N2 * uav->acceleration.z;
     result.y = R.M1.N0 * uav->acceleration.x + R.M1.N1 * uav->acceleration.y + R.M1.N2 * uav->acceleration.z;
-    result.z = R.M2.N0 * uav->acceleration.x + R.M2.N1 * uav->acceleration.y + R.M2.N2 * uav->acceleration.z;
+    result.z = R.M2.N0 * uav->acceleration.x + R.M2.N1 * uav->acceleration.y + R.M2.N2 * uav->acceleration.z + 1;
     // result.z = R->M2.N0 * v->x + R->M2.N1 * v->y + R->M2.N2 * v->z - GRAVITY;
-    // USER_LOG_INFO("world acceleration: x %f y %f z %f.", result.x, result.y, result.z);
+    printf("acceleration_W:\n x:%0.2f\n y:%0.2f\n z:%0.2f\n", result.x, result.y, result.z);
 
-    Location(uav, &result, time);
+    // Location(uav, &result, time);
 
     return 0;
 }

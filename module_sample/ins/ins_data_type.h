@@ -49,5 +49,9 @@ T_DjiReturnCode PositionCalculate(INS* uav, T_DjiDataTimestamp* time);
 dji_f32_t rad2deg(dji_f32_t rad);
 dji_f32_t deg2rad(dji_f32_t deg);
 int RotationMatrixMultiplyVector(INS* uav,T_DjiDataTimestamp* time);
+int QuaternionToRotationMatrix(INS* uav, Matrix* R);
+int Location(INS* uav,T_DjiVector3f* acc_world,dji_f32_t dt);
+void UpadateINS(INS* uav,T_DjiDataTimestamp* time);
+void INS_Init(INS* uav);
 
 #endif

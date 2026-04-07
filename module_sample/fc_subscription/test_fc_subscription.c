@@ -33,12 +33,14 @@
 #include <ins/ins_data_type.h>
 /* Private constants ---------------------------------------------------------*/
 #define FC_SUBSCRIPTION_TASK_STACK_SIZE   (2048)
-#define TH     0.01f
+#define TH     0.05f
 #define PRINT 0
 #define FILE_PRINT 0
 #define JSON 0
 #define MQTT 0
-#define BODY 0
+#define ACC_BODY 1
+#define ACC_GROUND 0
+#define ACC_RAW 0
 
 #if MQTT
 #define PUBLISHER_TOPIC "/imu_data"
@@ -144,6 +146,12 @@ if(err != MOSQ_ERR_SUCCESS){
         return DJI_ERROR_SYSTEM_MODULE_CODE_UNKNOWN;
     }
 
+    djiStat = DjiFcSubscription_SubscribeTopic(DJI_FC_SUBSCRIPTION_TOPIC_ACCELERATION_BODY, DJI_DATA_SUBSCRIPTION_TOPIC_10_HZ, NULL);
+    if (djiStat != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
+        USER_LOG_ERROR("Subscribe topic angular rate error.");
+        return DJI_ERROR_SYSTEM_MODULE_CODE_UNKNOWN;
+    }
+
     djiStat = DjiFcSubscription_SubscribeTopic(DJI_FC_SUBSCRIPTION_TOPIC_ACCELERATION_RAW, DJI_DATA_SUBSCRIPTION_TOPIC_10_HZ, NULL);
     if (djiStat != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("Subscribe topic angular rate error.");
@@ -171,8 +179,9 @@ static void *UserFcSubscription_Task(void *arg)
     T_DjiReturnCode djiStat;
     T_DjiFcSubscriptionVelocity velocity = {0};
     T_DjiDataTimestamp timestamp = {0};
-    T_DjiFcSubscriptionAccelerationGround acceleration = {0};
+    T_DjiFcSubscriptionAccelerationGround acceleration_ground = {0};
     T_DjiFcSubscriptionAccelerationBody acceleration_body = {0};
+    T_DjiFcSubscriptionAccelerationRaw acceleration_raw = {0};
 
 #if JSON
     cJSON* angular_v = cJSON_CreateObject();
@@ -189,6 +198,9 @@ static void *UserFcSubscription_Task(void *arg)
 #endif
     // printf("debug\n");
     USER_UTIL_UNUSED(arg);
+    INS_Init(&uav);
+
+    printf("v:%0.2f\n",uav.velocity.z);
 
     for(;;) {
 
@@ -203,7 +215,7 @@ static void *UserFcSubscription_Task(void *arg)
         cJSON_AddNumberToObject(q, "q2", uav.quaternion.q2);
         cJSON_AddNumberToObject(q, "q3", uav.quaternion.q3);
 #endif
-
+#if 0
         djiStat = DjiFcSubscription_GetLatestValueOfTopic(DJI_FC_SUBSCRIPTION_TOPIC_VELOCITY,
                                                           (uint8_t *) &velocity,
                                                           sizeof(T_DjiFcSubscriptionVelocity),
@@ -214,7 +226,7 @@ static void *UserFcSubscription_Task(void *arg)
         uav.velocity.x=velocity.data.x;
         uav.velocity.y=velocity.data.y;
         uav.velocity.z=velocity.data.z;
-
+#endif
 #if PRINT
             USER_LOG_INFO("timestamp: millisecond %u microsecond %u.", timestamp.millisecond,
                           timestamp.microsecond);
@@ -225,17 +237,18 @@ static void *UserFcSubscription_Task(void *arg)
     fprintf(fp,"%u:%0.2f,%0.2f,%0.2f\n",timestamp.millisecond,velocity.data.x, velocity.data.y,velocity.data.z);
 #endif
         djiStat = DjiFcSubscription_GetLatestValueOfTopic(DJI_FC_SUBSCRIPTION_TOPIC_ACCELERATION_GROUND,
-                                                          (uint8_t *) &acceleration,
+                                                          (uint8_t *) &acceleration_ground,
                                                           sizeof(T_DjiFcSubscriptionAccelerationGround),
                                                           &timestamp);
         if (djiStat != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
             USER_LOG_ERROR("get value of topic acceleration error.");
         }
-    #if !BODY
-        if(fabs(acceleration.x)>TH)  uav.acceleration.x=acceleration.x;
-        if(fabs(acceleration.y)>TH)  uav.acceleration.y=acceleration.y;
-        if(fabs(acceleration.z)>TH)  uav.acceleration.z=acceleration.z;
+    #if ACC_GROUND
+        if(fabs(acceleration_ground.x)>TH)  uav.acceleration.x=acceleration_ground.x;
+        if(fabs(acceleration_ground.y)>TH)  uav.acceleration.y=acceleration_ground.y;
+        if(fabs(acceleration_ground.z)>TH)  uav.acceleration.z=acceleration_ground.z;
         // uav.acceleration=acceleration;
+        printf("acceleration_G:\n x:%0.2f\n y:%0.2f\n z:%0.2f\n", acceleration_ground.x, acceleration_ground.y, acceleration_ground.z);
     #endif
 #if JSON
         cJSON_DeleteItemFromObject(liner_acceleration, "x");
@@ -255,15 +268,32 @@ static void *UserFcSubscription_Task(void *arg)
     fflush(fp);
 #endif
         djiStat = DjiFcSubscription_GetLatestValueOfTopic(DJI_FC_SUBSCRIPTION_TOPIC_ACCELERATION_RAW,
-                                                          (uint8_t *) &acceleration_body,
+                                                          (uint8_t *) &acceleration_raw,
                                                           sizeof(T_DjiFcSubscriptionAccelerationBody),
                                                           &timestamp);
         if (djiStat != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
             USER_LOG_ERROR("get value of topic acceleration& error.");
         }
-    #if BODY
-        uav.acceleration=acceleration_body;
+    #if ACC_RAW
+        uav.acceleration=acceleration_raw;
+        printf("acceleration_R:\n x:%0.2f\n y:%0.2f\n z:%0.2f\n", acceleration_raw.x, acceleration_raw.y, acceleration_raw.z);
     #endif
+
+    djiStat = DjiFcSubscription_GetLatestValueOfTopic(DJI_FC_SUBSCRIPTION_TOPIC_ACCELERATION_BODY,
+        (uint8_t *) &acceleration_body,
+        sizeof(T_DjiFcSubscriptionAccelerationBody),
+        &timestamp);
+if (djiStat != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
+USER_LOG_ERROR("get value of topic acceleration& error.");
+}
+#if ACC_BODY
+if(fabs(acceleration_body.x)>TH)  uav.acceleration.x=acceleration_body.x;
+if(fabs(acceleration_body.y)>TH)  uav.acceleration.y=acceleration_body.y;
+if(fabs(acceleration_body.z)>TH)  uav.acceleration.z=acceleration_body.z;
+// uav.acceleration=acceleration_body;
+// printf("acceleration_B:\n x:%0.2f\n y:%0.2f\n z:%0.2f\n", acceleration_body.x, acceleration_body.y, acceleration_body.z);
+#endif
+
 #if JSON
         cJSON_DeleteItemFromObject(angular_v, "x");
         cJSON_DeleteItemFromObject(angular_v, "y");
@@ -302,7 +332,8 @@ static T_DjiReturnCode DjiTest_FcSubscriptionReceiveQuaternionCallback(const uin
                                                                        const T_DjiDataTimestamp *timestamp)
 {
     // PositionCalculate(&uav,timestamp);
-    RotationMatrixMultiplyVector(&uav,timestamp);
+    // RotationMatrixMultiplyVector(&uav,timestamp);
+    UpadateINS(&uav,timestamp);
     USER_UTIL_UNUSED(dataSize);
     sem_wait(&sem_callback);
 
